@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>固態電池產業：全樣本最後募資節點圖譜</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <style>
+        body { background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif; }
+        .chart-card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            margin-bottom: 40px;
+            border: 1px solid #e2e8f0;
+        }
+        .chart-instance { width: 100%; height: 480px; cursor: pointer; }
+        .tooltip-box { padding: 12px; max-width: 400px; max-height: 380px; overflow-y: auto; }
+        .tooltip-title { font-weight: 800; font-size: 18px; color: #1e293b; border-bottom: 3px solid #3b82f6; padding-bottom: 6px; margin-bottom: 10px; }
+        .round-item { position: relative; padding-left: 18px; margin-bottom: 10px; border-left: 2px solid #e2e8f0; }
+        .round-item.latest { border-left-color: #3b82f6; background-color: #f0f9ff; padding: 6px 6px 6px 18px; border-radius: 0 8px 8px 0; }
+        .round-dot { position: absolute; left: -6px; top: 8px; width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; border: 2px solid white; }
+        .round-item.latest .round-dot { background: #3b82f6; }
+        .tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-right: 5px; }
+        .tag-round { background: #dbeafe; color: #1e40af; }
+        .tag-date { background: #f1f5f9; color: #64748b; }
+        .tag-segment { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: 12px; }
+        .unicorn-badge { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .tab-btn { transition: all 0.2s ease; cursor: pointer; }
+        .tab-btn.active { background-color: #2563eb; color: #ffffff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); }
+    </style>
+</head>
+<body class="p-6 md:p-12 relative">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-8">
+            <h1 class="text-4xl font-black text-slate-800 tracking-tight">固態電池產業：全樣本最後募資節點圖譜</h1>
+            <p class="text-slate-500 mt-2 text-lg italic">數據已透過 Excel 資料庫同步更新</p>
+            
+            <!-- 產業切換 Tab 按鈕區 -->
+            <div class="mt-6 flex flex-wrap gap-3 items-center bg-slate-200/60 p-1.5 rounded-xl w-fit">
+                <button onclick="filterSegment('ALL')" id="tab-ALL" class="tab-btn active px-5 py-2.5 rounded-lg font-bold text-sm text-slate-600">
+                    🌐 全部重點產業
+                </button>
+                <button onclick="filterSegment('電芯')" id="tab-電芯" class="tab-btn px-5 py-2.5 rounded-lg font-bold text-sm text-slate-600 hover:bg-slate-100">
+                    ⚡ 電芯公司
+                </button>
+                <button onclick="filterSegment('電解質')" id="tab-電解質" class="tab-btn px-5 py-2.5 rounded-lg font-bold text-sm text-slate-600 hover:bg-slate-100">
+                    🧪 電解質公司
+                </button>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-6 text-sm text-slate-500 font-medium">
+                <span>📊 Y 軸：歷年累計總融資次數</span>
+                <span>📌 分組：公司依據「最新一輪募資年份」歸類</span>
+                <span class="text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-md border border-blue-100">💡 提示：點擊任何柱狀圖可開啟「完整歷史融資明細視窗」</span>
+            </div>
+        </header>
+
+        <div id="charts-container"></div>
+    </div>
+
+    <!-- 彈出式詳細視窗 (Modal) -->
+    <div id="detail-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" onclick="handleBackdropClick(event)">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden transform transition-all">
+            <!-- Header -->
+            <div class="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <h3 id="modal-company-name" class="text-2xl font-black text-slate-800"></h3>
+                        <span id="modal-segment-tag" class="tag tag-segment"></span>
+                        <span id="modal-unicorn-tag" class="hidden unicorn-badge">獨角獸企業</span>
+                    </div>
+                    <p id="modal-subtitle" class="text-sm text-slate-500 font-bold mt-1"></p>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-200 transition text-xl font-bold">
+                    ✕
+                </button>
+            </div>
+            <!-- Body: 可捲動的完整融資歷程 -->
+            <div id="modal-rounds-list" class="p-6 overflow-y-auto space-y-4">
+                <!-- 內容動態帶入 -->
+            </div>
+            <!-- Footer -->
+            <div class="p-4 border-t border-slate-100 bg-slate-50/50 text-right">
+                <button onclick="closeModal()" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition shadow-md">
+                    關閉視窗
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const rawData = [
+  {
+    "company": "衛藍新能源",
+    "segment": "電解質",
+    "isUnicorn": true,
+    "rounds": [
+      {
+        "date": "2025-09-01",
+        "round": "Series D+",
+        "amount": "估值185億人民幣",
+        "investors": "北京市綠色能源和低碳產業投資基金、廣東能源集團等"
+      },
+      {
+        "date": "2023-07-20",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "招商局資本"
+      },
+      {
+        "date": "2022-12-14",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "中信建投、順為資本"
+      },
+      {
+        "date": "2022-11-04",
+        "round": "融資",
+        "amount": "15億元",
+        "investors": "中國誠通、國投創益"
+      },
+      {
+        "date": "2022-07-29",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "國汽智聯"
+      },
+      {
+        "date": "2022-03-24",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "小米產投、哈勃投資"
+      },
+      {
+        "date": "2021-11-26",
+        "round": "融資",
+        "amount": "5億元",
+        "investors": "華為、蔚來資本"
+      },
+      {
+        "date": "2021-07-19",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "IDG資本"
+      },
+      {
+        "date": "2021-06-03",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "鼎峰科創"
+      },
+      {
+        "date": "2021-02-26",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "國新國證"
+      },
+      {
+        "date": "2018-08-29",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "三峽資本"
+      },
+      {
+        "date": "2018-06-11",
+        "round": "股權融資",
+        "amount": "數億元",
+        "investors": "天齊鋰業"
+      },
+      {
+        "date": "2017-07-05",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "荷塘創投"
+      }
+    ]
+  },
+  {
+    "company": "欣界能源",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-08-06",
+        "round": "Series A",
+        "amount": "數億元",
+        "investors": "招銀國際資本、億航智能、海目星"
+      },
+      {
+        "date": "2024-04-17",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "高瓴創投"
+      },
+      {
+        "date": "2024-01-02",
+        "round": "Pre A+",
+        "amount": "未披露",
+        "investors": "達晨財智"
+      },
+      {
+        "date": "2023-09-19",
+        "round": "Pre A+",
+        "amount": "數億元",
+        "investors": "高瓴創投、億航智能、峰和資本"
+      },
+      {
+        "date": "2023-07-14",
+        "round": "Pre A",
+        "amount": "未披露",
+        "investors": "德賽集團"
+      },
+      {
+        "date": "2023-02-14",
+        "round": "Pre A",
+        "amount": "未披露",
+        "investors": "絲路金橋、東方富海"
+      },
+      {
+        "date": "2022-10-11",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "海創基金"
+      },
+      {
+        "date": "2022-08-24",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "雲霄投資、易鴻智能、峰和資本"
+      }
+    ]
+  },
+  {
+    "company": "德加能源",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-07-14",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "臨港藍灣資本"
+      },
+      {
+        "date": "2025-06-12",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "九智資本、金浦投資"
+      },
+      {
+        "date": "2024-11-11",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "昆山工研院基金"
+      },
+      {
+        "date": "2024-10-08",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "九智資本"
+      },
+      {
+        "date": "2023-10-21",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "九智資本"
+      },
+      {
+        "date": "2023-06-02",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "朝希資本、民銀金投、清研資本"
+      },
+      {
+        "date": "2022-09-29",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "昆山工研院基金、新活水創投"
+      }
+    ]
+  },
+  {
+    "company": "毅華新能源",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-03-06",
+        "round": "Angel",
+        "amount": "數千萬",
+        "investors": "東方富海、凌立書創投"
+      }
+    ]
+  },
+  {
+    "company": "太藍新能源",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-05-14",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "中科中創基金"
+      },
+      {
+        "date": "2024-09-24",
+        "round": "股權轉讓",
+        "amount": "0.0832",
+        "investors": "兩江資本"
+      },
+      {
+        "date": "2024-08-26",
+        "round": "融資",
+        "amount": "數億元",
+        "investors": "長安汽車安和基金"
+      },
+      {
+        "date": "2023-07-17",
+        "round": "Pre B",
+        "amount": "數億元",
+        "investors": "正奇控股、中金資本"
+      },
+      {
+        "date": "2022-06-06",
+        "round": "A++",
+        "amount": "數億元",
+        "investors": "中金資本、招商局創投"
+      },
+      {
+        "date": "2022-03-08",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "碧桂園創投"
+      },
+      {
+        "date": "2022-01-21",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "兩江資本"
+      },
+      {
+        "date": "2021-08-31",
+        "round": "Pre-A",
+        "amount": "未披露",
+        "investors": "君聯資本"
+      },
+      {
+        "date": "2021-05-26",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "浙江華清控股"
+      }
+    ]
+  },
+  {
+    "company": "固態離子",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-01-20",
+        "round": "Pre-A",
+        "amount": "億",
+        "investors": "國中資本、貴州省風投、深圳安仕股份、深圳中基股份"
+      },
+      {
+        "date": "2025-08-06",
+        "round": "AC",
+        "amount": "未披露",
+        "investors": "招銀國際、達晨財智、億航智能"
+      },
+      {
+        "date": "2024-04-17",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "高瓴創投"
+      },
+      {
+        "date": "2024-01-02",
+        "round": "Pre A",
+        "amount": "未披露",
+        "investors": "達晨財智"
+      },
+      {
+        "date": "2023-09-19",
+        "round": "Pre A",
+        "amount": "約億元",
+        "investors": "高瓴創投、億航智能"
+      },
+      {
+        "date": "2023-07-14",
+        "round": "Pre A",
+        "amount": "未披露",
+        "investors": "德賽集團"
+      },
+      {
+        "date": "2023-02-14",
+        "round": "Pre A",
+        "amount": "未披露",
+        "investors": "絲路金橋、龍方富海"
+      },
+      {
+        "date": "2022-10-11",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "海創基金"
+      },
+      {
+        "date": "2022-08-24",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "霄雲投資、易鴻智能"
+      }
+    ]
+  },
+  {
+    "company": "索里德科技",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-08-14",
+        "round": "Series A",
+        "amount": "數億元",
+        "investors": "中信建投、投控東海、三峽資本、興湘資本"
+      },
+      {
+        "date": "2023-12-29",
+        "round": "Pre A+",
+        "amount": "未披露",
+        "investors": "中信建投、星斗資本"
+      },
+      {
+        "date": "2023-06-01",
+        "round": "Pre A+",
+        "amount": "未披露",
+        "investors": "辰峰資本、陝西投資"
+      },
+      {
+        "date": "2023-02-01",
+        "round": "Pre A",
+        "amount": "未披露",
+        "investors": "國家電投旗下基金"
+      },
+      {
+        "date": "2022-07-01",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "長禾資本、國華三新"
+      },
+      {
+        "date": "2021-08-01",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "投控東海"
+      }
+    ]
+  },
+  {
+    "company": "中科深藍匯澤",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-08-21",
+        "round": "Pre",
+        "amount": "未披露",
+        "investors": "Aramco"
+      },
+      {
+        "date": "2024-05-14",
+        "round": "Pre-A",
+        "amount": "數億元",
+        "investors": "淡馬錫、中石化、春華資本"
+      }
+    ]
+  },
+  {
+    "company": "藍固新能源",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-07-21",
+        "round": "股權轉讓",
+        "amount": "0.0097",
+        "investors": "超威集團"
+      },
+      {
+        "date": "2022-12-14",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "順為資本、中科創星"
+      }
+    ]
+  },
+  {
+    "company": "氫輝能源",
+    "segment": "未分類",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-07-14",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "臨港藍灣資本"
+      }
+    ]
+  },
+  {
+    "company": "領充新能源",
+    "segment": "未分類",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-06-21",
+        "round": "Angel",
+        "amount": "數千萬元",
+        "investors": "景行天成、信唐安"
+      }
+    ]
+  },
+  {
+    "company": "領新新能源",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2023-08-08",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "招商局資本"
+      }
+    ]
+  },
+  {
+    "company": "固研新材",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-07-04",
+        "round": "Angel",
+        "amount": "數千萬元",
+        "investors": "人會資本"
+      }
+    ]
+  },
+  {
+    "company": "融固新材",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-06-20",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "東方富海、國科創投"
+      },
+      {
+        "date": "2024-03-21",
+        "round": "Angel",
+        "amount": "數千萬元",
+        "investors": "東方富海、中科長光創投、國科創投"
+      }
+    ]
+  },
+  {
+    "company": "金羽新能",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-05-06",
+        "round": "Angel",
+        "amount": "500萬元",
+        "investors": "高新創智"
+      },
+      {
+        "date": "2025-03-05",
+        "round": "Angel",
+        "amount": "數千萬元",
+        "investors": "勁邦資本"
+      },
+      {
+        "date": "2023-12-19",
+        "round": "Angel",
+        "amount": "數千萬元",
+        "investors": "潤森義信"
+      }
+    ]
+  },
+  {
+    "company": "屹鋰科技",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-01-26",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "尚順資本"
+      },
+      {
+        "date": "2024-05-24",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "啟高資本"
+      },
+      {
+        "date": "2022-07-15",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "源資產"
+      }
+    ]
+  },
+  {
+    "company": "恩力動力",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-12-27",
+        "round": "Series A",
+        "amount": "數億元",
+        "investors": "清大海峽、金石投資"
+      },
+      {
+        "date": "2022-06-30",
+        "round": "Series A",
+        "amount": "2000萬美元",
+        "investors": "紅杉中國、日初資本"
+      },
+      {
+        "date": "2022-01-01",
+        "round": "Series A",
+        "amount": "超億元",
+        "investors": "微光創投、綠動資本"
+      }
+    ]
+  },
+  {
+    "company": "正力新能",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-08-14",
+        "round": "Series B",
+        "amount": "未披露",
+        "investors": "詠聖資本"
+      },
+      {
+        "date": "2023-07-18",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "魯信創投"
+      },
+      {
+        "date": "2021-04-25",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "國軒高科"
+      },
+      {
+        "date": "2021-02-25",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "奇瑞汽車"
+      }
+    ]
+  },
+  {
+    "company": "因泰立",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-07-04",
+        "round": "Angel",
+        "amount": "數千萬元",
+        "investors": "人會資本"
+      }
+    ]
+  },
+  {
+    "company": "安瓦新能源",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-08-24",
+        "round": "Series B",
+        "amount": "未披露",
+        "investors": "詠聖資本、G60科創基金"
+      },
+      {
+        "date": "2023-07-18",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "魯信創投、山東高新投"
+      },
+      {
+        "date": "2021-04-25",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "國軒高科、多氟多"
+      },
+      {
+        "date": "2021-02-25",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "合肥信智通、奇瑞汽車"
+      }
+    ]
+  },
+  {
+    "company": "高能時代",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-04-08",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "中金資本、藍海華騰"
+      },
+      {
+        "date": "2023-06-09",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "南方精工"
+      },
+      {
+        "date": "2022-06-27",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "同創偉業"
+      },
+      {
+        "date": "2022-03-14",
+        "round": "Angel",
+        "amount": "超5000萬",
+        "investors": "中金資本、欣旺達"
+      }
+    ]
+  },
+  {
+    "company": "清陶能源",
+    "segment": "電解質",
+    "isUnicorn": true,
+    "rounds": [
+      {
+        "date": "2026-04-08",
+        "round": "Pre-IPO",
+        "amount": "投後估值279億",
+        "investors": "國泰君安、中金公司及招商證券擔任聯席保薦人"
+      },
+      {
+        "date": "2023-05-31",
+        "round": "Series G",
+        "amount": "27億元",
+        "investors": "上汽集團"
+      },
+      {
+        "date": "2022-05-08",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "和高資本"
+      },
+      {
+        "date": "2021-02-26",
+        "round": "Series F",
+        "amount": "未披露",
+        "investors": "上海科創基金"
+      },
+      {
+        "date": "2020-08-28",
+        "round": "Series E++",
+        "amount": "未披露",
+        "investors": "廣汽資本"
+      },
+      {
+        "date": "2020-07-01",
+        "round": "Series E+",
+        "amount": "未披露",
+        "investors": "恆旭資本"
+      },
+      {
+        "date": "2020-06-30",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "淮上英才創投"
+      },
+      {
+        "date": "2019-12-27",
+        "round": "Series E",
+        "amount": "未披露",
+        "investors": "北汽產投"
+      },
+      {
+        "date": "2019-06-26",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "中銀投資"
+      },
+      {
+        "date": "2017-11-22",
+        "round": "融資",
+        "amount": "數千萬元",
+        "investors": "清控銀杏"
+      },
+      {
+        "date": "2017-03-22",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "峰瑞資本"
+      },
+      {
+        "date": "2016-09-14",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "峰瑞資本"
+      }
+    ]
+  },
+  {
+    "company": "贛鋒鋰業",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2023-01-30",
+        "round": "Strategic",
+        "amount": "未披露",
+        "investors": "國投招商"
+      },
+      {
+        "date": "2023-01-05",
+        "round": "股權融資",
+        "amount": "未披露",
+        "investors": "小米產投"
+      },
+      {
+        "date": "2021-08-02",
+        "round": "Strategic",
+        "amount": "9.71億",
+        "investors": "小米集團、安克創新"
+      }
+    ]
+  },
+  {
+    "company": "輝能科技",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-05-27",
+        "round": "Pre-IPO",
+        "amount": "估值38億美元",
+        "investors": "未披露"
+      },
+      {
+        "date": "2022-06-08",
+        "round": "Series D+",
+        "amount": "數千萬美元",
+        "investors": "國新科創"
+      },
+      {
+        "date": "2022-01-27",
+        "round": "Strategic",
+        "amount": "約億歐元",
+        "investors": "Mercedes-Benz"
+      },
+      {
+        "date": "2021-10-29",
+        "round": "融資",
+        "amount": "3.26億美元",
+        "investors": "軟銀、春華、丹豐"
+      },
+      {
+        "date": "2020-04-08",
+        "round": "融資",
+        "amount": "約1億美元",
+        "investors": "中銀投資、一汽"
+      },
+      {
+        "date": "2019-02-11",
+        "round": "Strategic",
+        "amount": "1.5億美元",
+        "investors": "軟銀中國"
+      },
+      {
+        "date": "2015-02-01",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "軟銀中國"
+      },
+      {
+        "date": "2012-01-01",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "泰達科技"
+      }
+    ]
+  },
+  {
+    "company": "浙江鋒源",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2022-03-08",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "兩江資本"
+      }
+    ]
+  },
+  {
+    "company": "科諾思",
+    "segment": "未分類",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2021-08-31",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "君聯資本"
+      }
+    ]
+  },
+  {
+    "company": "博力威",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2021-06-03",
+        "round": "融資",
+        "amount": "未披露",
+        "investors": "鼎峰科創"
+      }
+    ]
+  },
+  {
+    "company": "中鼎動力",
+    "segment": "未分類",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2021-05-26",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "浙江華清控股"
+      }
+    ]
+  },
+  {
+    "company": "中固時代",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-05-06",
+        "round": "Strategic",
+        "amount": "1500 萬",
+        "investors": "長陽科技、宜賓鼎峰創業投資"
+      },
+      {
+        "date": "2025-06-29",
+        "round": "Series A",
+        "amount": "1000萬元",
+        "investors": "科力遠"
+      },
+      {
+        "date": "2023-12-08",
+        "round": "Angel",
+        "amount": "超千萬元",
+        "investors": "華禹創投、深圳中證投資"
+      }
+    ]
+  },
+  {
+    "company": "兆納新能源",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2025-03-05",
+        "round": "Angel",
+        "amount": "超千萬元",
+        "investors": "勁邦資本、潤森義信"
+      },
+      {
+        "date": "2023-12-19",
+        "round": "Angel",
+        "amount": "超千萬元",
+        "investors": "潤森義信"
+      }
+    ]
+  },
+  {
+    "company": "天石科豐",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-04-30",
+        "round": "Pre-A",
+        "amount": "千萬",
+        "investors": "元禾原點"
+      },
+      {
+        "date": "2025-02-26",
+        "round": "Angel",
+        "amount": "千萬元",
+        "investors": "萃英創投"
+      }
+    ]
+  },
+  {
+    "company": "合源鋰創",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-06-25",
+        "round": "Series A",
+        "amount": "億",
+        "investors": "小米長江基金"
+      },
+      {
+        "date": "2024-06-17",
+        "round": "Pre A",
+        "amount": "數億元",
+        "investors": "融昱資本"
+      },
+      {
+        "date": "2023-04-07",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "蘇州園區科創基金"
+      }
+    ]
+  },
+  {
+    "company": "瑞固新材",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2024-09-24",
+        "round": "Angel",
+        "amount": "未披露",
+        "investors": "成銘資本"
+      },
+      {
+        "date": "2024-05-23",
+        "round": "Angel",
+        "amount": "超億元",
+        "investors": "成銘資本、紫金港資本、龍游匯固"
+      }
+    ]
+  },
+  {
+    "company": "欣旺達動力",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-05-26",
+        "round": "Series C",
+        "amount": "16.798億",
+        "investors": "深高新投，四川兴川，德阳产业投资，工银资本，深圳储能基金，联赢激光，颐歌资产，农银投资，赢合科技"
+      },
+      {
+        "date": "2023-06-01",
+        "round": "Series B",
+        "amount": "16.5億",
+        "investors": "国寿股权，中银资产，建信股权，恩泽基金，华泰投资，汇晟基金，建信投资，友博资本"
+      },
+      {
+        "date": "2022-08-01",
+        "round": "Series A",
+        "amount": "80億",
+        "investors": "美团战略投资部，博华资本，深创投，源码资本，基石资本"
+      },
+      {
+        "date": "2022-02-01",
+        "round": "Pre A",
+        "amount": "24.3億",
+        "investors": "星航资本，IDG资本，理想汽车，小鹏汽车，蔚来资本"
+      }
+    ]
+  },
+  {
+    "company": "晶核能源",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-01-21",
+        "round": "Angel",
+        "amount": "千萬",
+        "investors": "天空工場創投基金"
+      }
+    ]
+  },
+  {
+    "company": "因勢新材料科技",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-01-24",
+        "round": "Angel",
+        "amount": "千萬",
+        "investors": "奇瑞集團風險投資平台瑞丞基金"
+      }
+    ]
+  },
+  {
+    "company": "耀石鋰電",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-02-27",
+        "round": "Series A",
+        "amount": "2億",
+        "investors": "武岳峰資本"
+      }
+    ]
+  },
+  {
+    "company": "南科天潤能源",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-03-04",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "力鼎資本、國華三新"
+      }
+    ]
+  },
+  {
+    "company": "睿意新材料科技",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-04-03",
+        "round": "融資",
+        "amount": "千萬",
+        "investors": "武漢蔡甸智谷科創投資（政府方）、深圳卡米佔投資控股（產業方）"
+      }
+    ]
+  },
+  {
+    "company": "中科超能",
+    "segment": "電芯",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-04-13",
+        "round": "Series A",
+        "amount": "未披露",
+        "investors": "鼎峰科創"
+      }
+    ]
+  },
+  {
+    "company": "純鋰新能源",
+    "segment": "電解質",
+    "isUnicorn": false,
+    "rounds": [
+      {
+        "date": "2026-05-11",
+        "round": "Pre-A",
+        "amount": "千萬",
+        "investors": "亦莊國投"
+      }
+    ]
+  }
+];
+        let chartInstances = [];
+        let currentSegment = 'ALL';
+
+        // 解析年份資料
+        const processedData = rawData.map(comp => {
+            const years = comp.rounds.map(r => {
+                const match = r.date.match(/\d{4}/);
+                return match ? parseInt(match[0], 10) : 0;
+            }).filter(y => y > 0);
+
+            return {
+                ...comp,
+                totalRounds: comp.rounds.length,
+                latestYear: years.length > 0 ? Math.max(...years) : 0
+            };
+        }).filter(comp => comp.latestYear > 0);
+
+        // 渲染圖表
+        function renderCharts(segmentFilter = 'ALL') {
+            chartInstances.forEach(inst => inst.dispose());
+            chartInstances = [];
+
+            const container = document.getElementById('charts-container');
+            container.innerHTML = '';
+
+            let filteredData = processedData;
+            if (segmentFilter !== 'ALL') {
+                filteredData = processedData.filter(d => d.segment && d.segment.includes(segmentFilter));
+            }
+
+            if (filteredData.length === 0) {
+                container.innerHTML = `
+                    <div class="chart-card text-center py-16 text-slate-400 text-lg font-medium">
+                        🔍 尚無符合「${segmentFilter}」分類的公司融資紀錄
+                    </div>
+                `;
+                return;
+            }
+
+            const years = Array.from(new Set(filteredData.map(d => d.latestYear))).sort((a, b) => b - a);
+
+            years.forEach(year => {
+                const companies = filteredData.filter(d => d.latestYear === year);
+                companies.sort((a, b) => b.totalRounds - a.totalRounds);
+
+                const card = document.createElement('div');
+                card.className = 'chart-card';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-8">
+                        <h2 class="text-2xl font-bold text-slate-800 flex items-center">
+                            <span class="w-2 h-8 bg-blue-600 mr-3 rounded-full"></span>
+                            最新募資年份：${year} 年 (${segmentFilter === 'ALL' ? '全部重點產業' : segmentFilter})
+                        </h2>
+                        <span class="text-slate-400 text-sm font-medium">梯隊企業：${companies.length} 家</span>
+                    </div>
+                    <div id="chart-${year}" class="chart-instance"></div>
+                `;
+                container.appendChild(card);
+
+                const myChart = echarts.init(document.getElementById(`chart-${year}`));
+                chartInstances.push(myChart);
+
+                const option = {
+                    grid: { top: '10%', left: '5%', right: '5%', bottom: '15%', containLabel: true },
+                    xAxis: {
+                        type: 'category',
+                        data: companies.map(c => c.company),
+                        axisLabel: { interval: 0, rotate: 15, color: '#475569', fontWeight: 600, fontSize: 13 },
+                        axisLine: { lineStyle: { color: '#e2e8f0' } }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '歷年總融資次數',
+                        minInterval: 1,
+                        splitLine: { lineStyle: { color: '#f1f5f9' } }
+                    },
+                    tooltip: {
+                        trigger: 'axis',
+                        enterable: true,   // ⭐ 關鍵設定 1：允許滑鼠滑入 Tooltip 內上下滾動
+                        confine: true,     // ⭐ 關鍵設定 2：強制將 Tooltip 限制在圖表區域內
+                        axisPointer: { type: 'shadow' },
+                        backgroundColor: '#ffffff',
+                        padding: 0,
+                        borderWidth: 0,
+                        shadowBlur: 20,
+                        shadowColor: 'rgba(0,0,0,0.15)',
+                        formatter: function(params) {
+                            const compName = params[0].name;
+                            const comp = filteredData.find(c => c.company === compName);
+                            let html = `<div class="tooltip-box"><div class="tooltip-title">${compName}</div>`;
+                            
+                            html += `<div class="mb-3 text-sm font-black text-blue-600 flex items-center gap-2">
+                                        <span>累計 ${comp.totalRounds} 輪募資紀錄</span>
+                                        <span class="tag tag-segment">[${comp.segment}]</span>
+                                        ${comp.isUnicorn ? '<span class="unicorn-badge">獨角獸</span>' : ''}
+                                     </div>`;
+                            
+                            // 提示使用者可以點擊查看完整歷史
+                            html += `<div class="text-[11px] text-blue-500 font-bold mb-3 bg-blue-50 p-1.5 rounded text-center">
+                                        👇 點擊柱狀圖可開啟完整歷史明細大視窗
+                                     </div>`;
+                            
+                            comp.rounds.forEach((r, idx) => {
+                                const isLatest = idx === 0;
+                                html += `
+                                    <div class="round-item ${isLatest ? 'latest' : ''}">
+                                        <div class="round-dot"></div>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="tag tag-round">${r.round}</span>
+                                            <span class="tag tag-date">${r.date}</span>
+                                        </div>
+                                        <div class="text-xs text-slate-700 font-bold">金額/估值：${r.amount}</div>
+                                        <div class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">投資方：${r.investors}</div>
+                                    </div>
+                                `;
+                            });
+                            html += `</div>`;
+                            return html;
+                        }
+                    },
+                    series: [{
+                        type: 'bar',
+                        barWidth: '32%',
+                        data: companies.map(c => c.totalRounds),
+                        itemStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#3b82f6' },
+                                { offset: 1, color: '#1d4ed8' }
+                            ]),
+                            borderRadius: [8, 8, 0, 0]
+                        },
+                        emphasis: { itemStyle: { color: '#1e3a8a' } }
+                    }]
+                };
+
+                myChart.setOption(option);
+
+                // ⭐ 綁定柱狀圖點擊事件 ➔ 開啟彈窗 Modal
+                myChart.on('click', function(params) {
+                    if (params.name) {
+                        openModal(params.name);
+                    }
+                });
+            });
+        }
+
+        // 彈窗 Modal 開啟邏輯
+        function openModal(compName) {
+            const comp = processedData.find(c => c.company === compName);
+            if (!comp) return;
+
+            document.getElementById('modal-company-name').innerText = comp.company;
+            document.getElementById('modal-segment-tag').innerText = `[${comp.segment}]`;
+            document.getElementById('modal-subtitle').innerText = `共累計 ${comp.totalRounds} 輪募資紀錄歷史時間軸 (由新到舊)`;
+
+            const unicornTag = document.getElementById('modal-unicorn-tag');
+            if (comp.isUnicorn) {
+                unicornTag.classList.remove('hidden');
+            } else {
+                unicornTag.classList.add('hidden');
+            }
+
+            const listContainer = document.getElementById('modal-rounds-list');
+            let html = '';
+
+            comp.rounds.forEach((r, idx) => {
+                const isLatest = idx === 0;
+                html += `
+                    <div class="relative pl-6 pb-2 border-l-2 ${isLatest ? 'border-blue-500 bg-blue-50/50 p-4 rounded-xl border-l-4' : 'border-slate-200'}">
+                        <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full ${isLatest ? 'bg-blue-600 ring-4 ring-blue-100' : 'bg-slate-300'}"></div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-md font-bold text-xs">${r.round}</span>
+                            <span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md font-bold text-xs">${r.date}</span>
+                            ${isLatest ? '<span class="text-xs bg-blue-600 text-white font-bold px-2 py-0.5 rounded-md">最新一輪</span>' : ''}
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 mb-1">
+                            💰 融資金額/估值：<span class="text-blue-600 font-black">${r.amount}</span>
+                        </div>
+                        <div class="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-lg border border-slate-100 mt-2">
+                            🤝 投資方：<span class="font-bold text-slate-700">${r.investors}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listContainer.innerHTML = html;
+            document.getElementById('detail-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // 防止背景滾動
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function handleBackdropClick(event) {
+            if (event.target.id === 'detail-modal') {
+                closeModal();
+            }
+        }
+
+        // Tab 切換邏輯
+        function filterSegment(seg) {
+            currentSegment = seg;
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            const activeBtn = document.getElementById(`tab-${seg}`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+
+            renderCharts(seg);
+        }
+
+        // 按下 ESC 鍵自動關閉彈窗
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // 初始化第一次渲染
+        renderCharts('ALL');
+
+        window.addEventListener('resize', () => {
+            chartInstances.forEach(inst => inst.resize());
+        });
+    </script>
+</body>
+</html>
